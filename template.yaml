@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  VELQIRIS OpenCV 5 Market Truth Visual Inspector
+  AWS Serverless Architecture for Algorithmic Chart Evidence Verification
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 1024
+    Runtime: python3.12
+    Tracing: Active
+    Environment:
+      Variables:
+        VELQIRIS_PAYOUT_RAIL: "0xC6F86e170411182114FcCdb28793dC76B5e8D144"
+        VELQIRIS_FAIL_CLOSED: "true"
+
+Resources:
+  VisualEvidenceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "velqiris-visual-evidence-${AWS::AccountId}-${AWS::Region}"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ChartVisionApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowMethods:
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - "*"
+        AllowOrigins:
+          - "https://velqiris-acquisition.netlify.app"
+
+  ChartVisionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_function.lambda_handler
+      Architectures:
+        - x86_64
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref VisualEvidenceBucket
+      Events:
+        VerifyChartApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ChartVisionApi
+            Path: /verify-chart
+            Method: post
+
+Outputs:
+  ChartVisionApiUrl:
+    Description: "HTTP API Endpoint for OpenCV 5 Chart Verification"
+    Value: !Sub "https://${ChartVisionApi}.execute-api.${AWS::Region}.amazonaws.com/verify-chart"
+  EvidenceBucketArn:
+    Description: "S3 Bucket storing cryptographically hashed chart proofs"
+    Value: !GetAtt VisualEvidenceBucket.Arn
